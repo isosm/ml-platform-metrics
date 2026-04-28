@@ -3,12 +3,12 @@
 __pycache__/
 *.pyc
 *.pyo
-.python-version
 
 # dbt
 dbt/target/
 dbt/dbt_packages/
 dbt/logs/
+dbt/prev-state/
 dbt/.user.yml
 
 # Dagster
@@ -21,16 +21,12 @@ dashboard/.evidence/
 dashboard/build/
 dashboard/.svelte-kit/
 
-# GCP credentials — aldrig committa dessa
+# GCP — never commit credentials
 application_default_credentials.json
 *-credentials.json
 service-account-key.json
 .boto
-
-# Miljövariabler
 .env
-.env.local
-.env.*.local
 
 # macOS
 .DS_Store

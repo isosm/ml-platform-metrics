@@ -1,16 +1,3 @@
-"""
-Platform health report asset.
-
-Läser fct_platform_health_daily och loggar en sammanfattning.
-I produktion pushar detta till Slack eller PagerDuty.
-
-Dataset väljs baserat på DBT_TARGET-miljövariabeln:
-  dev  → dbt_dev_marts  (lokala dev-körningar)
-  prod → marts           (produktionsdata)
-
-GCP-ekvivalent: Cloud Run-jobb triggas av Pub/Sub efter dbt-körning.
-"""
-
 import os
 from dagster import asset, AssetExecutionContext, Output, MetadataValue
 
@@ -21,7 +8,7 @@ PROJECT    = "ml-platform-metrics-494708"
 
 @asset(
     group_name="reporting",
-    description="Läser fct_platform_health_daily och rapporterar kritiska hälsovarningar.",
+    description="Reads fct_platform_health_daily and surfaces critical health alerts.",
     compute_kind="python",
     deps=["raw_github_events", "raw_ml_events"],
 )
@@ -55,16 +42,16 @@ def platform_health_report(context: AssetExecutionContext) -> Output[dict]:
 
     if not critical.empty:
         context.log.warning(
-            f"CRITICAL — {len(critical)} team(s) under hälsotröskel 70:\n"
+            f"CRITICAL — {len(critical)} team(s) below threshold 70:\n"
             + critical[["team", "health_score"]].to_string(index=False)
         )
     if not warning.empty:
-        context.log.warning(f"WARNING — {len(warning)} team(s) i varningszon (70–90).")
+        context.log.warning(f"WARNING — {len(warning)} team(s) in warning zone (70–90).")
 
-    context.log.info(f"Friska team: {len(healthy)}/4")
+    context.log.info(f"Healthy teams: {len(healthy)}/4")
 
     scores = df.set_index("team")["health_score"].round(1).to_dict()
-    context.log.info(f"Hälsoscorer: {scores}")
+    context.log.info(f"Health scores: {scores}")
 
     return Output(
         value=scores,

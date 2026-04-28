@@ -1,11 +1,9 @@
 /*
   One row per incident with MTTR calculated.
 
-  Pairs incident_opened with the next incident_closed for the same team.
-  Uses LEAD() to find the close timestamp — same pattern as pairing
+  Pairs incident_opened with the next incident_closed for the same team
+  using a LEFT JOIN on team + temporal ordering. Same pattern as matching
   session start/end events in clickstream analytics.
-
-  MTTR (Mean Time to Recover) = closed_at - opened_at in hours.
 */
 
 with events as (
@@ -31,7 +29,6 @@ closed as (
     where is_incident_closed
 ),
 
--- Match each opening to the next closing for the same team
 matched as (
     select
         o.incident_id,

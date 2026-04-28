@@ -1,6 +1,8 @@
 /*
-  Static team dimension. In production this would be sourced from an internal
-  service registry or HR system. Here it's built from the event grain.
+  Team dimension.
+
+  In production this would be sourced from an internal service registry.
+  Here it's derived from the event grain to keep things self-contained.
 */
 
 with team_models as (
@@ -15,7 +17,6 @@ enriched as (
         team,
         model_name,
 
-        -- Domain classification for dashboard grouping
         case team
             when 'team-reco'    then 'Personalisation'
             when 'team-pricing' then 'Commercial'
@@ -23,7 +24,6 @@ enriched as (
             when 'team-search'  then 'Discovery'
         end as domain,
 
-        -- SLA tier — influences alerting thresholds
         case team
             when 'team-reco'    then 'tier-1'
             when 'team-pricing' then 'tier-1'

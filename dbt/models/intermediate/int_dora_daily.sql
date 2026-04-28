@@ -1,14 +1,12 @@
 /*
   DORA metrics aggregated per team per day.
 
-  Four standard DORA metrics:
-    deployment_frequency  — deployments that day
-    avg_lead_time_days    — mean PR-open-to-merge duration
-    ci_failure_rate       — failed CI runs / total CI runs
-    incidents_opened      — new incidents (MTTR calculated at fact level)
+  deployment_frequency  — deployments that day
+  avg_lead_time_days    — mean PR open-to-merge duration
+  ci_failure_rate       — failed CI runs / total CI runs
+  incidents_opened      — new incidents (MTTR calculated at fact layer)
 
-  Analytics-engineering note: we aggregate here at the finest grain useful
-  for time-series trending. The mart layer will compute rolling averages.
+  7-day rolling windows pre-computed here for dashboard performance.
 */
 
 with github as (
@@ -20,11 +18,9 @@ daily_agg as (
         event_day                              as date_day,
         team,
 
-        -- Deployment Frequency
         countif(is_deployment)                 as deployment_count,
 
-        -- Lead Time for Change
-        avg(case when is_pr_merged then lead_time_days end)           as avg_lead_time_days,
+        avg(case when is_pr_merged then lead_time_days end)   as avg_lead_time_days,
         approx_quantiles(
             case when is_pr_merged then lead_time_days end, 100
         )[offset(50)]                          as p50_lead_time_days,
@@ -32,7 +28,6 @@ daily_agg as (
             case when is_pr_merged then lead_time_days end, 100
         )[offset(95)]                          as p95_lead_time_days,
 
-        -- Change Failure Rate
         countif(is_ci_run)                     as ci_run_count,
         countif(is_ci_failure)                 as ci_failure_count,
         safe_divide(
@@ -40,7 +35,6 @@ daily_agg as (
             nullif(countif(is_ci_run), 0)
         )                                      as ci_failure_rate,
 
-        -- Incident signals (MTTR joined later in mart)
         countif(is_incident_opened)            as incidents_opened,
         countif(is_incident_closed)            as incidents_closed
 
@@ -48,7 +42,6 @@ daily_agg as (
     group by 1, 2
 ),
 
--- 7-day rolling deployment frequency (DORA uses weekly buckets)
 with_rolling as (
     select
         *,

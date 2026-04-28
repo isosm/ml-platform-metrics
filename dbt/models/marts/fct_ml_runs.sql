@@ -1,8 +1,8 @@
 /*
   One row per model training run with time-to-deploy attached.
 
-  Time to deploy = hours between training_run and the next model_deployed
-  for the same team. Analogous to lead time but on the ML delivery side.
+  Time to deploy = hours from training_run to the next model_deployed
+  for the same team. ML equivalent of lead time for change.
 */
 
 with training as (
@@ -19,27 +19,6 @@ deployments as (
     where is_deployment
 ),
 
-drift as (
-    select
-        team,
-        model_name,
-        event_day        as drift_day,
-        event_timestamp  as drift_detected_at,
-        psi_score        as drift_psi_score
-    from {{ ref('stg_ml_events') }}
-    where is_drift_detected
-),
-
-retrain as (
-    select
-        team,
-        model_name,
-        event_timestamp  as retrain_triggered_at
-    from {{ ref('stg_ml_events') }}
-    where is_retrain_triggered
-),
-
--- For each training run, find next deployment
 with_deploy as (
     select
         t.event_id         as run_id,

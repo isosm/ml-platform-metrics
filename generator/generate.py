@@ -1,19 +1,16 @@
 """
-Synthetic platform event generator — DORA for ML.
+Synthetic ML platform event generator.
 
-Produces 6 months of realistic telemetry for 4 platform teams across two
-event streams: GitHub-style delivery events and ML lifecycle events.
+Produces six months of realistic telemetry across two event streams:
+  github_events — CI runs, PR merges, deployments, incident open/close
+  ml_events     — model training runs, deployments, drift detections, retrains
 
 The data follows a narrative arc so the dashboard tells a story:
-  Oct–Nov 2025  Healthy baseline, all teams green
+  Oct–Nov 2025  Healthy baseline
   Dec 2025      team-churn drift rising, CI failures climbing
   Jan 2026      P1 incident on team-reco, high MTTR
   Feb–Mar 2026  team-churn model degraded, slow recovery
   Apr 2026      All teams improving, new model versions shipped
-
-Two raw tables are produced (mirroring the vault design):
-  raw.github_events  — deployment, pr_merged, ci_run, incident_opened/closed
-  raw.ml_events      — training_run, model_deployed, drift_detected, retrain_triggered
 """
 
 import uuid
@@ -27,7 +24,7 @@ np.random.seed(42)
 
 START_DATE = datetime(2025, 10, 28, tzinfo=timezone.utc)
 END_DATE   = datetime(2026, 4, 28, tzinfo=timezone.utc)
-DAYS       = (END_DATE - START_DATE).days  # ~182
+DAYS       = (END_DATE - START_DATE).days
 
 TEAMS = ["team-reco", "team-pricing", "team-churn", "team-search"]
 
@@ -38,22 +35,20 @@ TEAM_MODELS = {
     "team-search":  "search_rank",
 }
 
-# Base accuracy per model (val precision@10 proxy)
 MODEL_BASE_PRECISION = {
-    "als_reco":        0.74,
+    "als_reco":         0.74,
     "price_elasticity": 0.81,
-    "churn_pred":      0.87,
-    "search_rank":     0.79,
+    "churn_pred":       0.87,
+    "search_rank":      0.79,
 }
 
 
 def _phase(day: int) -> str:
-    """Map day index to narrative phase."""
-    if day < 35:   return "healthy"          # Oct–Nov
-    if day < 65:   return "degrading"        # Dec
-    if day < 95:   return "incident"         # Jan
-    if day < 150:  return "recovery"         # Feb–Mar
-    return "stable"                           # Apr
+    if day < 35:  return "healthy"
+    if day < 65:  return "degrading"
+    if day < 95:  return "incident"
+    if day < 150: return "recovery"
+    return "stable"
 
 
 def _is_weekday(dt: datetime) -> bool:
@@ -64,23 +59,19 @@ def _ts(base_date: datetime, hour: int = 0, minute: int = 0) -> datetime:
     return base_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
 
-# ---------------------------------------------------------------------------
-# GitHub events
-# ---------------------------------------------------------------------------
-
 def generate_github_events() -> pd.DataFrame:
     rows = []
-    open_incidents: dict[str, datetime] = {}  # team → opened_at
+    open_incidents: dict[str, datetime] = {}
 
     for day_idx in range(DAYS):
-        date = START_DATE + timedelta(days=day_idx)
+        date  = START_DATE + timedelta(days=day_idx)
         phase = _phase(day_idx)
         is_wd = _is_weekday(date)
 
         for team in TEAMS:
-            # ── CI runs ───────────────────────────────────────────────
+            # CI runs
             ci_count = random.randint(2, 6) if is_wd else random.randint(0, 2)
-            for i in range(ci_count):
+            for _ in range(ci_count):
                 if phase == "degrading" and team == "team-churn":
                     fail_p = 0.28
                 elif phase == "incident" and team in ("team-reco", "team-churn"):
@@ -99,12 +90,12 @@ def generate_github_events() -> pd.DataFrame:
                     "ci_passed":      random.random() > fail_p,
                 })
 
-            # ── PR merges ─────────────────────────────────────────────
+            # PR merges
             if is_wd and random.random() < 0.65:
                 if phase in ("incident", "recovery") and team in ("team-reco", "team-churn"):
-                    lt = round(np.random.lognormal(1.8, 0.6), 2)  # longer
+                    lt = round(np.random.lognormal(1.8, 0.6), 2)
                 else:
-                    lt = round(np.random.lognormal(0.9, 0.5), 2)  # normal
+                    lt = round(np.random.lognormal(0.9, 0.5), 2)
 
                 rows.append({
                     "event_id":       str(uuid.uuid4()),
@@ -115,12 +106,12 @@ def generate_github_events() -> pd.DataFrame:
                     "ci_passed":      None,
                 })
 
-            # ── Deployments ───────────────────────────────────────────
+            # Deployments
             deploy_p = 0.38 if is_wd else 0.05
-            if phase == "incident" and team in ("team-reco",):
-                deploy_p = 0.15  # teams freeze deploys during incident
+            if phase == "incident" and team == "team-reco":
+                deploy_p = 0.15
             if phase in ("recovery", "stable"):
-                deploy_p = 0.45  # ramp back up
+                deploy_p = 0.45
 
             if random.random() < deploy_p:
                 rows.append({
@@ -132,7 +123,7 @@ def generate_github_events() -> pd.DataFrame:
                     "ci_passed":      None,
                 })
 
-            # ── Incidents ─────────────────────────────────────────────
+            # Incidents
             incident_p = 0.03
             if phase == "degrading" and team == "team-churn":
                 incident_p = 0.08
@@ -150,21 +141,16 @@ def generate_github_events() -> pd.DataFrame:
                     "ci_passed":      None,
                 })
 
-            # Resolve open incidents
             if team in open_incidents:
-                age_hours = (date - open_incidents[team]).total_seconds() / 3600
-                if phase in ("incident",):
-                    resolve_p = 0.15  # harder to resolve
-                else:
-                    resolve_p = 0.40
+                age_hours = (date - open_incidents[team].replace(tzinfo=None)).total_seconds() / 3600
+                resolve_p = 0.15 if phase == "incident" else 0.40
 
                 if age_hours > 48 or random.random() < resolve_p:
-                    close_time = _ts(date, hour=random.randint(8, 22), minute=random.randint(0, 59))
                     rows.append({
                         "event_id":       str(uuid.uuid4()),
                         "team":           team,
                         "event_type":     "incident_closed",
-                        "event_date":     close_time,
+                        "event_date":     _ts(date, hour=random.randint(8, 22), minute=random.randint(0, 59)),
                         "lead_time_days": None,
                         "ci_passed":      None,
                     })
@@ -173,18 +159,14 @@ def generate_github_events() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-# ---------------------------------------------------------------------------
-# ML events
-# ---------------------------------------------------------------------------
-
 def generate_ml_events() -> pd.DataFrame:
     rows = []
-    last_training: dict[str, datetime] = {}   # model → when last trained
-    last_deployment: dict[str, datetime] = {}  # model → when last deployed
-    drift_open: dict[str, datetime] = {}       # model → when drift detected
+    last_training:  dict[str, datetime] = {}
+    last_deployment: dict[str, datetime] = {}
+    drift_open:     dict[str, datetime] = {}
 
     for day_idx in range(DAYS):
-        date = START_DATE + timedelta(days=day_idx)
+        date  = START_DATE + timedelta(days=day_idx)
         phase = _phase(day_idx)
         is_wd = _is_weekday(date)
 
@@ -192,12 +174,12 @@ def generate_ml_events() -> pd.DataFrame:
             model = TEAM_MODELS[team]
             base_p = MODEL_BASE_PRECISION[model]
 
-            # ── Training runs ─────────────────────────────────────────
+            # Training runs
             train_p = 0.18 if is_wd else 0.04
             if phase == "recovery" and team == "team-churn":
-                train_p = 0.35  # retraining surge
+                train_p = 0.35
             if phase == "incident" and team == "team-reco":
-                train_p = 0.10  # fewer runs during incident
+                train_p = 0.10
 
             if random.random() < train_p:
                 if phase == "degrading" and team == "team-churn":
@@ -217,22 +199,22 @@ def generate_ml_events() -> pd.DataFrame:
                 last_training[model] = train_ts
 
                 rows.append({
-                    "event_id":       str(uuid.uuid4()),
-                    "team":           team,
-                    "model_name":     model,
-                    "event_type":     "training_run",
-                    "event_date":     train_ts,
-                    "psi_score":      round(psi, 4),
+                    "event_id":        str(uuid.uuid4()),
+                    "team":            team,
+                    "model_name":      model,
+                    "event_type":      "training_run",
+                    "event_date":      train_ts,
+                    "psi_score":       round(psi, 4),
                     "precision_at_10": round(precision, 4),
                     "drift_triggered": psi > 0.20,
                 })
 
-            # ── Model deployments ─────────────────────────────────────
+            # Model deployments
             if model in last_training:
                 hours_since = (date - last_training[model]).total_seconds() / 3600
                 deploy_p = 0.30 if hours_since > 6 and is_wd else 0.0
                 if phase == "incident":
-                    deploy_p *= 0.4  # deployments slow down
+                    deploy_p *= 0.4
 
                 if random.random() < deploy_p and (
                     model not in last_deployment
@@ -240,19 +222,18 @@ def generate_ml_events() -> pd.DataFrame:
                 ):
                     deploy_ts = last_training[model] + timedelta(hours=random.uniform(4, 24))
                     last_deployment[model] = deploy_ts
-
                     rows.append({
-                        "event_id":       str(uuid.uuid4()),
-                        "team":           team,
-                        "model_name":     model,
-                        "event_type":     "model_deployed",
-                        "event_date":     deploy_ts,
-                        "psi_score":      None,
+                        "event_id":        str(uuid.uuid4()),
+                        "team":            team,
+                        "model_name":      model,
+                        "event_type":      "model_deployed",
+                        "event_date":      deploy_ts,
+                        "psi_score":       None,
                         "precision_at_10": None,
                         "drift_triggered": None,
                     })
 
-            # ── Drift detection ───────────────────────────────────────
+            # Drift detection
             drift_p = 0.02
             if phase == "degrading" and team == "team-churn":
                 drift_p = 0.12
@@ -263,35 +244,30 @@ def generate_ml_events() -> pd.DataFrame:
                 psi_val = float(np.clip(np.random.uniform(0.21, 0.50), 0.21, 0.55))
                 drift_ts = _ts(date, hour=random.randint(6, 20), minute=random.randint(0, 59))
                 drift_open[model] = drift_ts
-
                 rows.append({
-                    "event_id":       str(uuid.uuid4()),
-                    "team":           team,
-                    "model_name":     model,
-                    "event_type":     "drift_detected",
-                    "event_date":     drift_ts,
-                    "psi_score":      round(psi_val, 4),
+                    "event_id":        str(uuid.uuid4()),
+                    "team":            team,
+                    "model_name":      model,
+                    "event_type":      "drift_detected",
+                    "event_date":      drift_ts,
+                    "psi_score":       round(psi_val, 4),
                     "precision_at_10": None,
                     "drift_triggered": True,
                 })
 
-            # ── Retrain triggered ─────────────────────────────────────
+            # Retrain triggered
             if model in drift_open:
                 age_h = (date - drift_open[model]).total_seconds() / 3600
-                if phase == "incident":
-                    retrain_p = 0.12  # slower response
-                else:
-                    retrain_p = 0.35
+                retrain_p = 0.12 if phase == "incident" else 0.35
 
                 if age_h > 72 or random.random() < retrain_p:
-                    retrain_ts = _ts(date, hour=random.randint(8, 16), minute=random.randint(0, 59))
                     rows.append({
-                        "event_id":       str(uuid.uuid4()),
-                        "team":           team,
-                        "model_name":     model,
-                        "event_type":     "retrain_triggered",
-                        "event_date":     retrain_ts,
-                        "psi_score":      None,
+                        "event_id":        str(uuid.uuid4()),
+                        "team":            team,
+                        "model_name":      model,
+                        "event_type":      "retrain_triggered",
+                        "event_date":      _ts(date, hour=random.randint(8, 16), minute=random.randint(0, 59)),
+                        "psi_score":       None,
                         "precision_at_10": None,
                         "drift_triggered": None,
                     })
@@ -300,25 +276,15 @@ def generate_ml_events() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
 def generate_all() -> dict[str, pd.DataFrame]:
-    print("Generating GitHub events (DORA signals)...")
+    print("Generating GitHub events...")
     github = generate_github_events()
 
-    print("Generating ML events (ML delivery signals)...")
+    print("Generating ML events...")
     ml = generate_ml_events()
 
     print(f"  github_events:  {len(github):>6,} rows")
     print(f"  ml_events:      {len(ml):>6,} rows")
-
-    event_counts = github.groupby("event_type").size()
-    print(f"  github breakdown:\n{event_counts.to_string()}")
-
-    ml_counts = ml.groupby("event_type").size()
-    print(f"  ml breakdown:\n{ml_counts.to_string()}")
 
     return {
         "github_events": github,

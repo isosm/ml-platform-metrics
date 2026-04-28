@@ -1,9 +1,8 @@
 /*
   One row per software deployment with DORA lead time attached.
 
-  Lead time is the average open PR lead time on the same day for the same team —
-  a reasonable proxy when PR IDs are not tracked (which is the case with synthetic data).
-  In a real integration this would join on PR ID → deployment ID.
+  Lead time is the average PR lead time on the same day for the same team.
+  In a real integration this would join on PR ID → deployment ID directly.
 */
 
 with deployments as (
@@ -35,7 +34,6 @@ joined as (
         t.sla_tier,
         coalesce(lt.avg_lead_time_days, 0)      as lead_time_days,
 
-        -- DORA classification — based on weekly deployment frequency
         row_number() over (
             partition by d.team, d.event_day
             order by d.event_timestamp

@@ -1,11 +1,13 @@
 /*
-  Retrain Response Time per team per dag.
+  Retrain response time per team per day.
 
-  Parar ihop drift_detected med nästa retrain_triggered för samma team/modell.
-  Samma pairing-logik som fct_incidents (öppnad → stängd).
+  Pairs each drift_detected event with the next retrain_triggered for the
+  same team and model. Same pairing pattern as fct_incidents (open → close).
 
-  Metrik: hur snabbt reagerar ett team när en modell driftar?
-  Target: < 24 timmar (analogt med MTTR < 1h för software incidents).
+  response_tier thresholds:
+    fast   < 24h  — team reacted same day
+    medium < 72h  — acceptable response
+    slow   > 72h  — warrants investigation
 */
 
 with drift as (
@@ -27,7 +29,6 @@ retrain as (
     where is_retrain_triggered
 ),
 
--- Para ihop varje drift med nästa retrain för samma team + modell
 paired as (
     select
         d.team,
@@ -45,21 +46,21 @@ paired as (
 
 final as (
     select
-        drift_day                                                as date_day,
+        drift_day                                              as date_day,
         team,
         model_name,
         drift_at,
         retrain_at,
-        timestamp_diff(retrain_at, drift_at, hour)              as response_hours,
-        retrain_at is null                                       as no_response_yet,
+        timestamp_diff(retrain_at, drift_at, hour)            as response_hours,
+        retrain_at is null                                     as no_response_yet,
 
-        -- Klassificera svarstid — analogt med DORA MTTR-tiers
         case
-            when retrain_at is null                                  then 'no_response'
-            when timestamp_diff(retrain_at, drift_at, hour) <= 24   then 'fast'
-            when timestamp_diff(retrain_at, drift_at, hour) <= 72   then 'medium'
-            else                                                          'slow'
+            when retrain_at is null                                 then 'no_response'
+            when timestamp_diff(retrain_at, drift_at, hour) <= 24  then 'fast'
+            when timestamp_diff(retrain_at, drift_at, hour) <= 72  then 'medium'
+            else                                                         'slow'
         end as response_tier
+
     from paired
 )
 
