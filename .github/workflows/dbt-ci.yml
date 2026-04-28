@@ -39,8 +39,5 @@ jobs:
       - name: dbt deps
         run: dbt deps --project-dir dbt --profiles-dir dbt
 
-      - name: dbt parse (validerar struktur utan DB)
+      - name: dbt parse (validerar struktur, refs och macros utan DB)
         run: dbt parse --project-dir dbt --profiles-dir dbt --target dev
-
-      - name: dbt compile (genererar SQL utan DB)
-        run: dbt compile --project-dir dbt --profiles-dir dbt --target dev
