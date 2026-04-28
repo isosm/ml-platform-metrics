@@ -1,5 +1,11 @@
 # ML Platform Metrics — DORA for ML
 
+[![dbt](https://img.shields.io/badge/dbt-1.11-orange)](https://www.getdbt.com)
+[![BigQuery](https://img.shields.io/badge/BigQuery-GCP-blue)](https://cloud.google.com/bigquery)
+[![Dagster](https://img.shields.io/badge/Dagster-1.7-purple)](https://dagster.io)
+
+**GitHub:** https://github.com/isosm/ml-platform-metrics
+
 A production-grade analytics engineering project that applies DORA (DevOps Research and Assessment) methodology to ML platform teams. Measures both software delivery performance and ML lifecycle delivery using a unified metric framework.
 
 **Live data:** 6 months of synthetic platform telemetry across 4 teams, loaded to BigQuery and transformed through a full dbt pipeline.
