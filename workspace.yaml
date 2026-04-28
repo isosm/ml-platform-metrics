@@ -1,0 +1,9 @@
+# workspace.yaml — talar om för Dagster var code location är.
+# Vid `dagster dev` läser Dagster denna fil automatiskt.
+#
+# python_file pekar på definitions.py som innehåller `defs`-objektet.
+# Alternativt kan man peka på ett Python-paket med python_package.
+
+load_from:
+  - python_file: orchestration/definitions.py
+    working_directory: .

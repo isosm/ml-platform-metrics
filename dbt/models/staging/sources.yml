@@ -1,0 +1,82 @@
+version: 2
+
+sources:
+  - name: raw
+    database: ml-platform-metrics-494708
+    schema: raw
+    description: >
+      Raw event tables loaded by the synthetic DORA-for-ML platform generator.
+      Immutable — never modified after load. All transformations start here.
+    config:
+      loaded_at_field: event_date
+      freshness:
+        warn_after:  {count: 24, period: hour}
+        error_after: {count: 48, period: hour}
+
+    tables:
+      - name: github_events
+        description: >
+          Software delivery signals: CI runs, PR merges, deployments,
+          and incident open/close events. One row per event.
+        columns:
+          - name: event_id
+            description: "Surrogate key — UUID."
+            tests:
+              - unique
+              - not_null
+          - name: team
+            description: "Platform team identifier."
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ["team-reco", "team-pricing", "team-churn", "team-search"]
+          - name: event_type
+            description: "Event classification."
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ["ci_run", "pr_merged", "deployment", "incident_opened", "incident_closed"]
+          - name: event_date
+            tests: [not_null]
+          - name: lead_time_days
+            description: "Days PR was open. Populated only for pr_merged events."
+          - name: ci_passed
+            description: "CI result. Populated only for ci_run events."
+
+      - name: ml_events
+        description: >
+          ML lifecycle signals: training runs, deployments, drift detections,
+          and retrain triggers. One row per event.
+        columns:
+          - name: event_id
+            tests:
+              - unique
+              - not_null
+          - name: team
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ["team-reco", "team-pricing", "team-churn", "team-search"]
+          - name: model_name
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ["als_reco", "price_elasticity", "churn_pred", "search_rank"]
+          - name: event_type
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ["training_run", "model_deployed", "drift_detected", "retrain_triggered"]
+          - name: event_date
+            tests: [not_null]
+          - name: psi_score
+            description: "Population Stability Index. Populated for training_run and drift_detected."
+          - name: precision_at_10
+            description: "Model precision@10. Populated for training_run events."
+          - name: drift_triggered
+            description: "True when PSI > 0.20."

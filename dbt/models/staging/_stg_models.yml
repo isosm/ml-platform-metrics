@@ -1,0 +1,39 @@
+version: 2
+
+models:
+  - name: stg_github_events
+    description: >
+      Cleaned and typed GitHub delivery events. Views — cheap to query,
+      always current. All transformations are additive; no rows dropped.
+    columns:
+      - name: event_id
+        tests: [unique, not_null]
+      - name: team
+        tests: [not_null]
+      - name: event_type
+        tests: [not_null]
+      - name: event_day
+        tests: [not_null]
+      - name: event_timestamp
+        tests: [not_null]
+
+  - name: stg_ml_events
+    description: >
+      Cleaned ML lifecycle events with PSI severity bucketing and
+      drift flag normalisation.
+    columns:
+      - name: event_id
+        tests: [unique, not_null]
+      - name: team
+        tests: [not_null]
+      - name: model_name
+        tests: [not_null]
+      - name: event_type
+        tests: [not_null]
+      - name: event_day
+        tests: [not_null]
+      - name: psi_severity
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["stable", "warning", "critical"]

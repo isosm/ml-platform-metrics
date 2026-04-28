@@ -1,0 +1,172 @@
+version: 2
+
+# ---------------------------------------------------------------------------
+# Semantic Model — platform_health
+# MetricFlow läser detta för att serva metriker via dbt Semantic Layer.
+# Alla 8 DORA-for-ML-metriker definierade som kod — versionshanterat i git.
+#
+# Design-beslut: vi pekar på förberäknade rate-kolumner (ci_failure_rate,
+# drift_failure_rate) i fct_platform_health_daily istället för att använda
+# ratio-metrics. Det ger en single source of truth — beräkningslogiken
+# lever i dbt-modellen, inte spridd i MetricFlow-konfigurationen.
+# ---------------------------------------------------------------------------
+
+semantic_models:
+  - name: platform_health
+    description: "Daily platform health per team — basis for all 8 DORA-for-ML metrics."
+    model: ref('fct_platform_health_daily')
+    defaults:
+      agg_time_dimension: date_day
+
+    entities:
+      - name: team_day
+        type: primary
+        expr: "concat(team, '_', cast(date_day as string))"
+
+    dimensions:
+      - name: date_day
+        type: time
+        type_params:
+          time_granularity: day
+
+      - name: team
+        type: categorical
+
+      - name: health_tier
+        type: categorical
+        description: "healthy | warning | critical"
+
+    measures:
+      # ── DORA: Software Delivery ───────────────────────────────────────────
+      - name: deployments
+        agg: sum
+        expr: deployment_count
+        description: "Total software deployments."
+
+      - name: avg_lead_time
+        agg: average
+        expr: avg_lead_time_days
+        description: "Mean PR lead time in days."
+
+      - name: ci_failure_rate_avg
+        agg: average
+        expr: ci_failure_rate
+        description: "Pre-computed daily CI failure rate — avg over window."
+
+      - name: avg_mttr
+        agg: average
+        expr: avg_mttr_hours
+
+      # ── ML Delivery ───────────────────────────────────────────────────────
+      - name: training_runs
+        agg: sum
+        expr: training_run_count
+
+      - name: model_deployments
+        agg: sum
+        expr: model_deployment_count
+
+      - name: drift_failure_rate_avg
+        agg: average
+        expr: drift_failure_rate
+        description: "Pre-computed daily drift failure rate — avg over window."
+
+      - name: avg_precision
+        agg: average
+        expr: avg_precision_at_10
+
+      # ── Incidents ─────────────────────────────────────────────────────────
+      - name: incidents
+        agg: sum
+        expr: incident_count
+
+      # ── Composite score ───────────────────────────────────────────────────
+      - name: health_score_value
+        agg: average
+        expr: health_score
+
+
+metrics:
+  # ── DORA: Software Delivery ──────────────────────────────────────────────
+
+  - name: deployment_frequency
+    label: "Deployment Frequency"
+    description: >
+      Genomsnittliga dagliga deployments per team.
+      DORA Elite: ≥ 1/dag. High: ≥ 1/vecka.
+    type: simple
+    type_params:
+      measure:
+        name: deployments
+
+  - name: lead_time_for_change
+    label: "Lead Time for Change (dagar)"
+    description: >
+      Genomsnittlig tid från PR-skapande till merge.
+      DORA Elite: < 1 dag. Low: > 7 dagar.
+    type: simple
+    type_params:
+      measure:
+        name: avg_lead_time
+
+  - name: change_failure_rate
+    label: "Change Failure Rate"
+    description: >
+      Andel CI-körningar som failar. Förberäknat i fct_platform_health_daily.
+      DORA Elite: < 15%. Low: > 45%.
+    type: simple
+    type_params:
+      measure:
+        name: ci_failure_rate_avg
+
+  - name: mean_time_to_recover
+    label: "MTTR (timmar)"
+    description: >
+      Genomsnittlig tid från incident_opened till incident_closed.
+      DORA Elite: < 1 timme. Low: > 24 timmar.
+    type: simple
+    type_params:
+      measure:
+        name: avg_mttr
+
+  # ── ML Delivery Performance ──────────────────────────────────────────────
+
+  - name: model_training_frequency
+    label: "Model Training Frequency"
+    description: >
+      Totalt antal träningskörningar per team.
+      Mäter hur aktivt team återtränar modeller vid drift eller ny data.
+    type: simple
+    type_params:
+      measure:
+        name: training_runs
+
+  - name: model_deployment_frequency
+    label: "Model Deployment Frequency"
+    description: >
+      ML-deployments per team. Analogt med software deployment frequency
+      men för modellversioner.
+    type: simple
+    type_params:
+      measure:
+        name: model_deployments
+
+  - name: drift_failure_rate
+    label: "Drift Failure Rate"
+    description: >
+      Andel träningskörningar med PSI > 0.20. Förberäknat i mart-lagret.
+      Mål: < 5%. PSI > 0.20 = critical-tröskel.
+    type: simple
+    type_params:
+      measure:
+        name: drift_failure_rate_avg
+
+  - name: platform_health_score
+    label: "Platform Health Score (0–100)"
+    description: >
+      Composite score — viktat genomsnitt av alla 5 DORA-for-ML-dimensioner.
+      Under 70 = alert. Över 90 = Elite-nivå.
+    type: simple
+    type_params:
+      measure:
+        name: health_score_value

@@ -1,0 +1,9 @@
+components:
+  "@evidence-dev/core-components": {}
+
+datasources:
+  bigquery:
+    package: "@evidence-dev/bigquery"
+    options:
+      project_id: ml-platform-metrics-494708
+      dataset: dbt_dev_marts

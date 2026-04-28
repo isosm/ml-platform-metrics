@@ -1,0 +1,32 @@
+ml_platform_metrics:
+  target: dev
+  outputs:
+    # Local development — models land in dbt_dev_staging, dbt_dev_intermediate, dbt_dev_marts
+    dev:
+      type: bigquery
+      method: oauth
+      project: ml-platform-metrics-494708
+      dataset: dbt_dev
+      location: europe-north1
+      threads: 4
+      timeout_seconds: 300
+
+    # CI — thin run on PR, uses slim CI state:modified+
+    ci:
+      type: bigquery
+      method: oauth
+      project: ml-platform-metrics-494708
+      dataset: dbt_ci
+      location: europe-north1
+      threads: 4
+      timeout_seconds: 300
+
+    # Production — models land in staging, intermediate, marts (clean names)
+    prod:
+      type: bigquery
+      method: oauth
+      project: ml-platform-metrics-494708
+      dataset: dbt_prod
+      location: europe-north1
+      threads: 8
+      timeout_seconds: 300

@@ -1,0 +1,41 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.python-version
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+dbt/.user.yml
+
+# Dagster
+.tmp_dagster_home*/
+dagster_home/
+
+# Evidence / Node
+dashboard/node_modules/
+dashboard/.evidence/
+dashboard/build/
+dashboard/.svelte-kit/
+
+# GCP credentials — aldrig committa dessa
+application_default_credentials.json
+*-credentials.json
+service-account-key.json
+.boto
+
+# Miljövariabler
+.env
+.env.local
+.env.*.local
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
