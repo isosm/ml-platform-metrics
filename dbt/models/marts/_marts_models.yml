@@ -146,6 +146,21 @@ models:
         data_type: int64
         constraints:
           - type: not_null
+      - name: avg_retrain_response_hours
+        data_type: float64
+        description: "Genomsnittlig tid (timmar) från drift_detected till retrain_triggered."
+        constraints:
+          - type: not_null
+      - name: fast_retrain_response_count
+        data_type: int64
+        description: "Antal drift-events med svarstid under 24h den dagen."
+        constraints:
+          - type: not_null
+      - name: slow_retrain_response_count
+        data_type: int64
+        description: "Antal drift-events med svarstid över 72h den dagen."
+        constraints:
+          - type: not_null
       - name: score_deploy_freq
         data_type: float64
         constraints:

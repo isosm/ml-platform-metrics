@@ -80,6 +80,12 @@ semantic_models:
         agg: sum
         expr: incident_count
 
+      # ── Retrain Response Time ─────────────────────────────────────────────
+      - name: avg_retrain_response
+        agg: average
+        expr: avg_retrain_response_hours
+        description: "Genomsnittlig svarstid på drift i timmar."
+
       # ── Composite score ───────────────────────────────────────────────────
       - name: health_score_value
         agg: average
@@ -170,3 +176,14 @@ metrics:
     type_params:
       measure:
         name: health_score_value
+
+  - name: retrain_response_time
+    label: "Retrain Response Time (timmar)"
+    description: >
+      Genomsnittlig tid från drift_detected till retrain_triggered per team.
+      Mäter hur snabbt ett team agerar när en modell degraderar.
+      Target: under 24 timmar. Analogt med MTTR för software incidents.
+    type: simple
+    type_params:
+      measure:
+        name: avg_retrain_response

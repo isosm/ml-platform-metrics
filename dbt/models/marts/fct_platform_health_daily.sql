@@ -48,6 +48,18 @@ incidents as (
     group by 1, 2
 ),
 
+retrain_response as (
+    select
+        date_day,
+        team,
+        round(avg(response_hours), 1)                      as avg_retrain_response_hours,
+        countif(response_tier = 'fast')                    as fast_response_count,
+        countif(response_tier = 'slow')                    as slow_response_count
+    from {{ ref('int_retrain_response_daily') }}
+    where not no_response_yet
+    group by 1, 2
+),
+
 joined as (
     select
         d.date_day,
@@ -77,13 +89,20 @@ joined as (
         -- Incident / MTTR
         coalesce(inc.incident_count, 0)  as incident_count,
         coalesce(inc.avg_mttr_hours, 0)  as avg_mttr_hours,
-        coalesce(inc.high_mttr_count, 0) as high_mttr_count
+        coalesce(inc.high_mttr_count, 0) as high_mttr_count,
+
+        -- Retrain Response Time (ny metrik)
+        coalesce(rr.avg_retrain_response_hours, 0) as avg_retrain_response_hours,
+        coalesce(rr.fast_response_count, 0)        as fast_retrain_response_count,
+        coalesce(rr.slow_response_count, 0)        as slow_retrain_response_count
 
     from dora d
     left join ml
         on d.date_day = ml.date_day and d.team = ml.team
     left join incidents inc
         on d.date_day = inc.date_day and d.team = inc.team
+    left join retrain_response rr
+        on d.date_day = rr.date_day and d.team = rr.team
 ),
 
 scored as (
@@ -160,6 +179,9 @@ final as (
         training_run_count,
         model_deployment_count,
         drift_detected_count,
+        avg_retrain_response_hours,
+        fast_retrain_response_count,
+        slow_retrain_response_count,
 
         -- Component scores
         score_deploy_freq,
